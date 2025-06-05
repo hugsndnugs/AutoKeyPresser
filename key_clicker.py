@@ -137,9 +137,28 @@ class KeyClicker:
         self.root.withdraw()
         
     def quit_app(self):
+        # Stop the key clicking if it's running
+        if self.is_running:
+            self.is_running = False
+            if self.click_thread and self.click_thread.is_alive():
+                self.click_thread.join(timeout=1.0)  # Wait for thread to finish with timeout
+        
+        # Stop the keyboard listener
+        if self.listener and self.listener.is_alive():
+            self.listener.stop()
+            self.listener.join(timeout=1.0)
+        
+        # Stop the tray icon
         if self.tray_icon:
             self.tray_icon.stop()
-        self.root.quit()
+        
+        # Destroy the root window and all its widgets
+        if self.root:
+            self.root.quit()
+            self.root.destroy()
+        
+        # Force exit after cleanup
+        sys.exit(0)
         
     def on_key_press(self, key):
         try:
