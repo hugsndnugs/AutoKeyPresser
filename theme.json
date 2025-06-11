@@ -1,0 +1,20 @@
+{
+    "theme": "light",
+    "font_size": 10,
+    "transparency": 1.0,
+    "padding": 5,
+    "colors": {
+        "bg": "#ffffff",
+        "fg": "#000000",
+        "button_bg": "#e0e0e0",
+        "button_fg": "#000000",
+        "entry_bg": "#ffffff",
+        "entry_fg": "#000000",
+        "frame_bg": "#f0f0f0",
+        "label_bg": "#ffffff",
+        "hover_bg": "#d0d0d0",
+        "active_bg": "#c0c0c0",
+        "disabled_bg": "#e8e8e8",
+        "disabled_fg": "#808080"
+    }
+}
