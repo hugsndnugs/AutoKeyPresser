@@ -40,7 +40,19 @@ class KeyClicker:
             'up': Key.up,
             'down': Key.down,
             'left': Key.left,
-            'right': Key.right
+            'right': Key.right,
+            'F1': Key.f1,
+            'F2': Key.f2,
+            'F3': Key.f3,
+            'F4': Key.f4,
+            'F5': Key.f5,
+            'F6': Key.f6,
+            'F7': Key.f7,
+            'F8': Key.f8,
+            'F9': Key.f9,
+            'F10': Key.f10,
+            'F11': Key.f11,
+            'F12': Key.f12
         }
         
         # Create GUI elements
