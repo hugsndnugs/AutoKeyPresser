@@ -41,18 +41,18 @@ class KeyClicker:
             'down': Key.down,
             'left': Key.left,
             'right': Key.right,
-            'F1': Key.f1,
-            'F2': Key.f2,
-            'F3': Key.f3,
-            'F4': Key.f4,
-            'F5': Key.f5,
-            'F6': Key.f6,
-            'F7': Key.f7,
-            'F8': Key.f8,
-            'F9': Key.f9,
-            'F10': Key.f10,
-            'F11': Key.f11,
-            'F12': Key.f12
+            'f1': Key.f1,
+            'f2': Key.f2,
+            'f3': Key.f3,
+            'f4': Key.f4,
+            'f5': Key.f5,
+            'f6': Key.f6,
+            'f7': Key.f7,
+            'f8': Key.f8,
+            'f9': Key.f9,
+            'f10': Key.f10,
+            'f11': Key.f11,
+            'f12': Key.f12
         }
         
         # Create GUI elements
@@ -168,6 +168,13 @@ class KeyClicker:
                        font=("TkDefaultFont", self.theme["font_size"]),
                        padding=padding)
         
+        # Add warning style for entry fields
+        style.configure("Warning.TEntry",
+                       fieldbackground="#fff3cd",  # Light yellow background
+                       foreground="#856404",       # Dark yellow text
+                       font=("TkDefaultFont", self.theme["font_size"]),
+                       padding=padding)
+        
         style.configure("TLabelframe",
                        background=self.theme["colors"]["frame_bg"],
                        foreground=self.theme["colors"]["fg"],
@@ -233,6 +240,7 @@ class KeyClicker:
         self.key_var = tk.StringVar(value="a")
         self.key_entry = ttk.Entry(key_frame, textvariable=self.key_var, width=10)
         self.key_entry.pack(side=tk.LEFT, padx=5)
+        self.key_entry.bind('<KeyRelease>', self.on_key_entry_change)
         
         # Add special keys dropdown
         self.special_key_var = tk.StringVar(value="")
@@ -256,6 +264,7 @@ class KeyClicker:
         self.hotkey_var = tk.StringVar(value="F6")
         self.hotkey_entry = ttk.Entry(hotkey_frame, textvariable=self.hotkey_var, width=10)
         self.hotkey_entry.pack(side=tk.LEFT, padx=5)
+        self.hotkey_entry.bind('<KeyRelease>', self.on_hotkey_entry_change)
         
         # Press limit
         limit_frame = ttk.Frame(main_frame)
@@ -339,6 +348,13 @@ class KeyClicker:
     def on_special_key_selected(self, event):
         selected = self.special_key_var.get()
         if selected:
+            # Check for hotkey conflict
+            hotkey = self.hotkey_var.get().lower()
+            if selected.lower() == hotkey:
+                messagebox.showwarning("Hotkey Conflict", 
+                                     f"Warning: '{selected}' is currently set as your hotkey.\n"
+                                     f"Using the same key for both hotkey and key to press will create a conflict.\n"
+                                     f"Consider changing your hotkey to a different key.")
             self.key_var.set(selected)
             
     def create_tray_icon(self):
@@ -407,6 +423,13 @@ class KeyClicker:
                 interval = float(self.interval_var.get())
                 if interval < 0.01:
                     messagebox.showerror("Error", "Interval must be at least 0.01 seconds")
+                    return
+                
+                # Check for hotkey conflict
+                key_to_press = self.key_var.get().lower()
+                hotkey = self.hotkey_var.get().lower()
+                if key_to_press == hotkey:
+                    messagebox.showerror("Error", f"Cannot use '{self.hotkey_var.get()}' as both hotkey and key to press.\nThis would create a conflict. Please choose a different key or hotkey.")
                     return
                     
                 self.is_running = True
@@ -539,6 +562,30 @@ class KeyClicker:
             self.save_theme()
             
             messagebox.showinfo("Theme Reset", "Theme has been reset to default settings.")
+
+    def on_key_entry_change(self, event):
+        # Check for hotkey conflict when user manually types a key
+        entered_key = self.key_var.get().lower()
+        hotkey = self.hotkey_var.get().lower()
+        if entered_key == hotkey and entered_key:
+            # Show a subtle warning (not a blocking error since user might be typing)
+            self.key_entry.config(style="Warning.TEntry")
+            # Reset style after a short delay
+            self.root.after(2000, lambda: self.key_entry.config(style="TEntry"))
+        else:
+            self.key_entry.config(style="TEntry")
+
+    def on_hotkey_entry_change(self, event):
+        # Check for hotkey conflict when user manually types a key
+        entered_key = self.hotkey_var.get().lower()
+        key_to_press = self.key_var.get().lower()
+        if entered_key == key_to_press and entered_key:
+            # Show a subtle warning (not a blocking error since user might be typing)
+            self.hotkey_entry.config(style="Warning.TEntry")
+            # Reset style after a short delay
+            self.root.after(2000, lambda: self.hotkey_entry.config(style="TEntry"))
+        else:
+            self.hotkey_entry.config(style="TEntry")
 
     def run(self):
         self.root.mainloop()
