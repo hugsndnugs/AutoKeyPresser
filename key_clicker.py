@@ -12,13 +12,17 @@ import json
 import urllib.request
 import datetime
 import webbrowser
+import shutil
+import tempfile
+import subprocess
 
-__version__ = "1.2"
+__version__ = "1.3"
 
 VERSION_CHECK_URL = "https://raw.githubusercontent.com/hugsndnugs/AutoKeyPresser/main/latest_version.txt"  # Update this to your actual version file URL
 DOWNLOAD_URL = "https://github.com/hugsndnugs/AutoKeyPresser/releases/latest"  # Update to your releases page
 CACHE_FILE = "version_check_cache.json"
 CACHE_DURATION_HOURS = 24
+SKIP_UPDATE_FILE = "skipped_update.json"
 
 def check_for_update():
     # Check cache first
@@ -45,30 +49,157 @@ def check_for_update():
         print(f"[Warning] Could not check for updates: {e}")
         return None
 
+def get_latest_release_exe_url():
+    """Get the direct download URL for the latest .exe from GitHub releases API."""
+    import json
+    api_url = "https://api.github.com/repos/hugsndnugs/AutoKeyPresser/releases/latest"
+    try:
+        with urllib.request.urlopen(api_url, timeout=10) as response:
+            data = json.load(response)
+            for asset in data.get("assets", []):
+                name = asset.get("name", "").lower()
+                if name.endswith(".exe"):
+                    return asset.get("browser_download_url")
+    except Exception as e:
+        print(f"[Warning] Could not get latest release .exe URL: {e}")
+    return None
+
+def get_skipped_version():
+    if os.path.exists(SKIP_UPDATE_FILE):
+        try:
+            with open(SKIP_UPDATE_FILE, 'r') as f:
+                data = json.load(f)
+                return data.get('skipped_version')
+        except Exception:
+            return None
+    return None
+
+def set_skipped_version(version):
+    try:
+        with open(SKIP_UPDATE_FILE, 'w') as f:
+            json.dump({'skipped_version': version}, f)
+    except Exception:
+        pass
+
+def auto_download_and_prompt_install(root, latest_version):
+    exe_url = get_latest_release_exe_url()
+    if not exe_url:
+        messagebox.showerror("Update Error", "Could not find the latest installer. Please update manually.")
+        return
+    temp_dir = tempfile.mkdtemp()
+    exe_path = os.path.join(temp_dir, os.path.basename(exe_url))
+
+    # Progress dialog
+    progress_dialog = tk.Toplevel(root)
+    progress_dialog.title("Downloading Update")
+    progress_dialog.resizable(False, False)
+    progress_dialog.grab_set()
+    tk.Label(progress_dialog, text=f"Downloading v{latest_version}...").pack(padx=20, pady=(20, 5))
+    progress_var = tk.DoubleVar()
+    progress_bar = ttk.Progressbar(progress_dialog, variable=progress_var, maximum=100, length=300)
+    progress_bar.pack(padx=20, pady=10)
+    cancel_flag = {'cancel': False}
+    def cancel():
+        cancel_flag['cancel'] = True
+        progress_dialog.destroy()
+    cancel_btn = tk.Button(progress_dialog, text="Cancel", command=cancel)
+    cancel_btn.pack(pady=(0, 20))
+    progress_dialog.update_idletasks()
+    w = progress_dialog.winfo_width()
+    h = progress_dialog.winfo_height()
+    x = root.winfo_x() + (root.winfo_width() - w) // 2
+    y = root.winfo_y() + (root.winfo_height() - h) // 2
+    progress_dialog.geometry(f"{w}x{h}+{x}+{y}")
+
+    # Download with progress
+    try:
+        with urllib.request.urlopen(exe_url) as response:
+            total = int(response.getheader('Content-Length', 0))
+            downloaded = 0
+            chunk_size = 8192
+            with open(exe_path, 'wb') as out_file:
+                while True:
+                    if cancel_flag['cancel']:
+                        out_file.close()
+                        os.remove(exe_path)
+                        return
+                    chunk = response.read(chunk_size)
+                    if not chunk:
+                        break
+                    out_file.write(chunk)
+                    downloaded += len(chunk)
+                    if total > 0:
+                        percent = (downloaded / total) * 100
+                        progress_var.set(percent)
+                        progress_dialog.update()
+        progress_dialog.destroy()
+    except Exception as e:
+        progress_dialog.destroy()
+        messagebox.showerror("Update Error", f"Failed to download update: {e}")
+        return
+    # Prompt to install
+    def do_install():
+        try:
+            subprocess.Popen([exe_path], shell=True)
+        except Exception as e:
+            messagebox.showerror("Install Error", f"Failed to launch installer: {e}")
+        root.quit()
+        sys.exit(0)
+    if messagebox.askyesno("Install Update", f"Update v{latest_version} downloaded. Install now?\nThe app will close and the installer will run."):
+        do_install()
+    else:
+        messagebox.showinfo("Update Deferred", f"You can install the update later from: {exe_path}")
+
 def notify_if_update_gui(root):
     latest_version = check_for_update()
     if latest_version is None:
         return  # Network or cache error, skip
+    skipped_version = get_skipped_version()
+    if skipped_version and skipped_version == latest_version:
+        return  # User chose to skip this version
     def version_tuple(v):
         return tuple(map(int, (v.split("."))))
     try:
         if version_tuple(latest_version) > version_tuple(__version__):
-            # Custom dialog with button
+            # If auto-download is enabled and running as .exe, do auto-download
+            auto_download = getattr(root, 'master', root)
+            try:
+                app = auto_download.app if hasattr(auto_download, 'app') else None
+            except Exception:
+                app = None
+            try:
+                from __main__ import app as main_app
+            except Exception:
+                main_app = None
+            auto_download_enabled = False
+            if app and hasattr(app, 'auto_download_update'):
+                auto_download_enabled = app.auto_download_update
+            elif main_app and hasattr(main_app, 'auto_download_update'):
+                auto_download_enabled = main_app.auto_download_update
+            is_frozen = getattr(sys, 'frozen', False)
+            if auto_download_enabled and is_frozen:
+                auto_download_and_prompt_install(root, latest_version)
+                return
+            # Otherwise, show the manual update dialog with skip option
             dialog = tk.Toplevel(root)
             dialog.title("Update Available")
             dialog.resizable(False, False)
             dialog.grab_set()
             dialog.transient(root)
-            msg = tk.Label(dialog, text=f"A new version (v{latest_version}) is available!\nYou are using v{__version__}.\nPlease update.", justify="left", padx=20, pady=10)
+            msg = tk.Label(dialog, text=f"A new version (v{latest_version}) is available!\nYou are using v{__version__}.", justify="left", padx=20, pady=10)
             msg.pack()
             def open_url():
                 webbrowser.open(DOWNLOAD_URL)
                 dialog.destroy()
             btn = tk.Button(dialog, text="Download Latest Version", command=open_url, padx=10, pady=5)
             btn.pack(pady=(0,10))
+            def skip_update():
+                set_skipped_version(latest_version)
+                dialog.destroy()
+            skip_btn = tk.Button(dialog, text="Skip this update", command=skip_update, padx=10, pady=5)
+            skip_btn.pack(pady=(0,10))
             close_btn = tk.Button(dialog, text="Close", command=dialog.destroy, padx=10, pady=5)
             close_btn.pack(pady=(0,10))
-            # Center dialog
             dialog.update_idletasks()
             w = dialog.winfo_width()
             h = dialog.winfo_height()
@@ -163,6 +294,7 @@ class KeyClicker:
             "font_size": 10,
             "transparency": 1.0,
             "padding": 5,
+            "auto_download_update": False,
             "colors": {
                 "bg": "#ffffff",
                 "fg": "#000000",
@@ -199,8 +331,10 @@ class KeyClicker:
         except:
             self.theme = default_theme
             self.save_theme()
+        self.auto_download_update = self.theme.get("auto_download_update", False)
 
     def save_theme(self):
+        self.theme["auto_download_update"] = self.auto_download_update
         with open(self.theme_file, 'w') as f:
             json.dump(self.theme, f, indent=4)
 
@@ -414,6 +548,16 @@ class KeyClicker:
         ttk.Button(reset_frame, text="Reset to Default Theme", 
                   command=self.reset_theme).pack(pady=5)
 
+        # Auto-download updates checkbox
+        self.auto_download_var = tk.BooleanVar(value=self.auto_download_update)
+        auto_dl_cb = ttk.Checkbutton(
+            theme_frame,
+            text="Auto-download updates",
+            variable=self.auto_download_var,
+            command=self.on_auto_download_toggle
+        )
+        auto_dl_cb.pack(anchor="w", padx=5, pady=(5, 0))
+
     def on_special_key_selected(self, event):
         selected = self.special_key_var.get()
         if selected:
@@ -608,6 +752,7 @@ class KeyClicker:
                 "font_size": 10,
                 "transparency": 1.0,
                 "padding": 5,
+                "auto_download_update": False,
                 "colors": {
                     "bg": "#ffffff",
                     "fg": "#000000",
@@ -658,6 +803,10 @@ class KeyClicker:
             self.root.after(2000, lambda: self.hotkey_entry.config(style="TEntry"))
         else:
             self.hotkey_entry.config(style="TEntry")
+
+    def on_auto_download_toggle(self):
+        self.auto_download_update = self.auto_download_var.get()
+        self.save_theme()
 
     def run(self):
         self.root.mainloop()
