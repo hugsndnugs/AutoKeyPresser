@@ -23,6 +23,7 @@ args = [
     '--windowed',  # Don't show console window
     f'--icon={icon_path}',  # Icon for the executable
     '--add-data=README.md;.',  # Include README
+    '--add-data=theme.json;.',  # Include theme.json
     '--clean',  # Clean PyInstaller cache
     '--noconfirm',  # Replace existing build without asking
 ]

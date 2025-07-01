@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, colorchooser
+from tkinter import ttk, messagebox, colorchooser, filedialog
 from pynput import keyboard
 from pynput.keyboard import Key, Controller
 import time
@@ -15,6 +15,10 @@ import webbrowser
 import shutil
 import tempfile
 import subprocess
+# Add winsound for notification (Windows only)
+if sys.platform == 'win32':
+    import winsound
+from playsound import playsound
 
 __version__ = "1.3"
 
@@ -255,6 +259,10 @@ class KeyClicker:
             'f12': Key.f12
         }
         
+        # Notification settings
+        self.notification_type = self.theme.get("notification_type", "sound")  # 'sound', 'messagebox', 'both', 'none'
+        self.custom_sound_path = self.theme.get("custom_sound_path", "")
+        
         # Create GUI elements
         self.create_gui()
         
@@ -295,6 +303,8 @@ class KeyClicker:
             "transparency": 1.0,
             "padding": 5,
             "auto_download_update": False,
+            "notification_type": "sound",
+            "custom_sound_path": "",
             "colors": {
                 "bg": "#ffffff",
                 "fg": "#000000",
@@ -332,9 +342,13 @@ class KeyClicker:
             self.theme = default_theme
             self.save_theme()
         self.auto_download_update = self.theme.get("auto_download_update", False)
+        self.notification_type = self.theme.get("notification_type", "sound")
+        self.custom_sound_path = self.theme.get("custom_sound_path", "")
 
     def save_theme(self):
         self.theme["auto_download_update"] = self.auto_download_update
+        self.theme["notification_type"] = self.notification_type
+        self.theme["custom_sound_path"] = self.custom_sound_path
         with open(self.theme_file, 'w') as f:
             json.dump(self.theme, f, indent=4)
 
@@ -558,6 +572,20 @@ class KeyClicker:
         )
         auto_dl_cb.pack(anchor="w", padx=5, pady=(5, 0))
 
+        # Notification settings section
+        notif_frame = ttk.LabelFrame(main_frame, text="Notification Settings", padding="5")
+        notif_frame.pack(fill=tk.X, pady=10, padx=10)
+        ttk.Label(notif_frame, text="On press limit:").pack(side=tk.LEFT, padx=5)
+        self.notif_type_var = tk.StringVar(value=self.notification_type)
+        notif_combo = ttk.Combobox(notif_frame, textvariable=self.notif_type_var, values=["sound", "messagebox", "both", "none"], width=12)
+        notif_combo.pack(side=tk.LEFT, padx=5)
+        notif_combo.bind('<<ComboboxSelected>>', self.on_notif_type_change)
+        self.sound_path_var = tk.StringVar(value=self.custom_sound_path)
+        sound_btn = ttk.Button(notif_frame, text="Choose Sound...", command=self.choose_sound_file)
+        sound_btn.pack(side=tk.LEFT, padx=5)
+        self.sound_label = ttk.Label(notif_frame, text=os.path.basename(self.custom_sound_path) if self.custom_sound_path else "Default beep")
+        self.sound_label.pack(side=tk.LEFT, padx=5)
+
     def on_special_key_selected(self, event):
         selected = self.special_key_var.get()
         if selected:
@@ -673,8 +701,9 @@ class KeyClicker:
                     self.is_running = False
                     self.status_var.set("Status: Completed")
                     self.toggle_button.config(text="Start (F6)")
+                    self.notify_press_limit()
                     break
-                    
+                
                 self.keyboard_controller.press(key_to_press)
                 self.keyboard_controller.release(key_to_press)
                 self.press_count += 1
@@ -753,6 +782,8 @@ class KeyClicker:
                 "transparency": 1.0,
                 "padding": 5,
                 "auto_download_update": False,
+                "notification_type": "sound",
+                "custom_sound_path": "",
                 "colors": {
                     "bg": "#ffffff",
                     "fg": "#000000",
@@ -807,6 +838,39 @@ class KeyClicker:
     def on_auto_download_toggle(self):
         self.auto_download_update = self.auto_download_var.get()
         self.save_theme()
+
+    def on_notif_type_change(self, event=None):
+        self.notification_type = self.notif_type_var.get()
+        self.save_theme()
+
+    def choose_sound_file(self):
+        filetypes = [("Audio Files", "*.wav *.mp3"), ("All Files", "*.*")]
+        path = filedialog.askopenfilename(title="Select Sound File", filetypes=filetypes)
+        if path:
+            self.custom_sound_path = path
+            self.sound_path_var.set(path)
+            self.sound_label.config(text=os.path.basename(path))
+            self.save_theme()
+
+    def notify_press_limit(self):
+        # Handle notification based on user settings
+        if self.notification_type in ("sound", "both"):
+            if self.custom_sound_path:
+                try:
+                    playsound(self.custom_sound_path, block=False)
+                except Exception:
+                    pass
+            elif sys.platform == 'win32':
+                try:
+                    winsound.Beep(1000, 400)
+                except Exception:
+                    pass
+        if self.notification_type in ("messagebox", "both"):
+            try:
+                messagebox.showinfo("Limit Reached", "The press limit has been reached.")
+            except Exception:
+                pass
+        # If 'none', do nothing
 
     def run(self):
         self.root.mainloop()
