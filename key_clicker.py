@@ -20,7 +20,8 @@ class KeyClicker:
         self.is_running = False
         self.click_thread = None
         self.tray_icon = None
-        self.press_count = 0
+        self.press_count = 0  # Total presses across all sessions
+        self.session_press_count = 0  # Presses in current session
         
         # Load or create default theme
         self.theme_file = "theme.json"
@@ -377,6 +378,7 @@ class KeyClicker:
         
     def reset_counter(self):
         self.press_count = 0
+        self.session_press_count = 0
         self.counter_var.set("Presses: 0")
         
     def show_window(self):
@@ -433,6 +435,7 @@ class KeyClicker:
                     return
                     
                 self.is_running = True
+                self.session_press_count = 0  # Reset session counter when starting
                 self.status_var.set("Status: Running")
                 self.toggle_button.config(text="Stop (F6)")
                 self.click_thread = threading.Thread(target=self.click_loop, daemon=True)
@@ -454,7 +457,7 @@ class KeyClicker:
             key_to_press = self.special_keys.get(key.lower(), key)
             
             while self.is_running:
-                if limit > 0 and self.press_count >= limit:
+                if limit > 0 and self.session_press_count >= limit:
                     self.is_running = False
                     self.status_var.set("Status: Completed")
                     self.toggle_button.config(text="Start (F6)")
@@ -463,6 +466,7 @@ class KeyClicker:
                 self.keyboard_controller.press(key_to_press)
                 self.keyboard_controller.release(key_to_press)
                 self.press_count += 1
+                self.session_press_count += 1
                 self.counter_var.set(f"Presses: {self.press_count}")
                 time.sleep(interval)
                 
