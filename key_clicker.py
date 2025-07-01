@@ -20,7 +20,7 @@ if sys.platform == 'win32':
     import winsound
 from playsound import playsound
 
-__version__ = "1.3"
+__version__ = "1.4"
 
 VERSION_CHECK_URL = "https://raw.githubusercontent.com/hugsndnugs/AutoKeyPresser/main/latest_version.txt"  # Update this to your actual version file URL
 DOWNLOAD_URL = "https://github.com/hugsndnugs/AutoKeyPresser/releases/latest"  # Update to your releases page
@@ -226,6 +226,11 @@ class KeyClicker:
         self.press_count = 0  # Total presses across all sessions
         self.session_press_count = 0  # Presses in current session
         
+        # Set defaults before loading theme
+        self.auto_download_update = False
+        self.notification_type = "sound"
+        self.custom_sound_path = ""
+        
         # Load or create default theme
         self.theme_file = "theme.json"
         self.load_theme()
@@ -258,10 +263,6 @@ class KeyClicker:
             'f11': Key.f11,
             'f12': Key.f12
         }
-        
-        # Notification settings
-        self.notification_type = self.theme.get("notification_type", "sound")  # 'sound', 'messagebox', 'both', 'none'
-        self.custom_sound_path = self.theme.get("custom_sound_path", "")
         
         # Create GUI elements
         self.create_gui()
@@ -337,9 +338,15 @@ class KeyClicker:
                     self.theme = loaded_theme
             else:
                 self.theme = default_theme
+                self.auto_download_update = self.theme.get("auto_download_update", False)
+                self.notification_type = self.theme.get("notification_type", "sound")
+                self.custom_sound_path = self.theme.get("custom_sound_path", "")
                 self.save_theme()
         except:
             self.theme = default_theme
+            self.auto_download_update = self.theme.get("auto_download_update", False)
+            self.notification_type = self.theme.get("notification_type", "sound")
+            self.custom_sound_path = self.theme.get("custom_sound_path", "")
             self.save_theme()
         self.auto_download_update = self.theme.get("auto_download_update", False)
         self.notification_type = self.theme.get("notification_type", "sound")
