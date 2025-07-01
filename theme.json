@@ -3,6 +3,7 @@
     "font_size": 10,
     "transparency": 1.0,
     "padding": 5,
+    "auto_download_update": true,
     "colors": {
         "bg": "#ffffff",
         "fg": "#000000",
