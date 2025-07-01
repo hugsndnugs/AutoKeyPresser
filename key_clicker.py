@@ -9,6 +9,74 @@ import pystray
 from PIL import Image, ImageDraw
 import os
 import json
+import urllib.request
+import datetime
+import webbrowser
+
+__version__ = "1.2"
+
+VERSION_CHECK_URL = "https://raw.githubusercontent.com/hugsndnugs/AutoKeyPresser/main/latest_version.txt"  # Update this to your actual version file URL
+DOWNLOAD_URL = "https://github.com/hugsndnugs/AutoKeyPresser/releases/latest"  # Update to your releases page
+CACHE_FILE = "version_check_cache.json"
+CACHE_DURATION_HOURS = 24
+
+def check_for_update():
+    # Check cache first
+    now = datetime.datetime.utcnow()
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, 'r') as f:
+                cache = json.load(f)
+            last_check = datetime.datetime.fromisoformat(cache.get('last_check'))
+            cached_version = cache.get('latest_version')
+            if (now - last_check).total_seconds() < CACHE_DURATION_HOURS * 3600:
+                return cached_version
+        except Exception:
+            pass  # Ignore cache errors
+    # Fetch from remote
+    try:
+        with urllib.request.urlopen(VERSION_CHECK_URL, timeout=5) as response:
+            latest_version = response.read().decode('utf-8').strip()
+            # Cache result
+            with open(CACHE_FILE, 'w') as f:
+                json.dump({'last_check': now.isoformat(), 'latest_version': latest_version}, f)
+            return latest_version
+    except Exception as e:
+        print(f"[Warning] Could not check for updates: {e}")
+        return None
+
+def notify_if_update_gui(root):
+    latest_version = check_for_update()
+    if latest_version is None:
+        return  # Network or cache error, skip
+    def version_tuple(v):
+        return tuple(map(int, (v.split("."))))
+    try:
+        if version_tuple(latest_version) > version_tuple(__version__):
+            # Custom dialog with button
+            dialog = tk.Toplevel(root)
+            dialog.title("Update Available")
+            dialog.resizable(False, False)
+            dialog.grab_set()
+            dialog.transient(root)
+            msg = tk.Label(dialog, text=f"A new version (v{latest_version}) is available!\nYou are using v{__version__}.\nPlease update.", justify="left", padx=20, pady=10)
+            msg.pack()
+            def open_url():
+                webbrowser.open(DOWNLOAD_URL)
+                dialog.destroy()
+            btn = tk.Button(dialog, text="Download Latest Version", command=open_url, padx=10, pady=5)
+            btn.pack(pady=(0,10))
+            close_btn = tk.Button(dialog, text="Close", command=dialog.destroy, padx=10, pady=5)
+            close_btn.pack(pady=(0,10))
+            # Center dialog
+            dialog.update_idletasks()
+            w = dialog.winfo_width()
+            h = dialog.winfo_height()
+            x = root.winfo_x() + (root.winfo_width() - w) // 2
+            y = root.winfo_y() + (root.winfo_height() - h) // 2
+            dialog.geometry(f"{w}x{h}+{x}+{y}")
+    except Exception:
+        pass  # Ignore version comparison errors
 
 class KeyClicker:
     def __init__(self):
@@ -596,4 +664,5 @@ class KeyClicker:
 
 if __name__ == "__main__":
     app = KeyClicker()
+    notify_if_update_gui(app.root)
     app.run() 
