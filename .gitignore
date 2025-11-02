@@ -51,4 +51,15 @@ icon.ico
 *.tmp
 *.bak
 *.swp
-*~ 
+*~
+
+# Build scripts
+update_version.py
+create_icon.py
+
+# Cache and update files
+version_check_cache.json
+skipped_update.json
+
+# Release archives
+*.zip 

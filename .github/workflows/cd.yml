@@ -51,6 +51,13 @@ open('latest_version.txt', 'w', encoding='utf-8').write(version)
         python update_version.py
       shell: pwsh
     
+    - name: Verify version update
+      run: |
+        python -c "import re; content = open('key_clicker.py', 'r', encoding='utf-8').read(); m = re.search(r'__version__ = \"([^\"]+)\"', content); print(f'Code version: {m.group(1)}')"
+        $latest = Get-Content latest_version.txt -Raw
+        Write-Host "Version file: $latest"
+      shell: pwsh
+    
     - name: Create icon if missing
       run: |
         if (-not (Test-Path "icon.ico")) {
@@ -69,6 +76,7 @@ img.save(icon_path)
         } else {
           Write-Host "Icon already exists"
         }
+      shell: pwsh
     
     - name: Build executable
       run: |
@@ -83,14 +91,16 @@ img.save(icon_path)
           Write-Error "Executable not found!"
           exit 1
         }
+      shell: pwsh
     
     - name: Create release archive
       run: |
         $version = "${{ steps.version.outputs.version }}"
         $archiveName = "AutoKeyClicker-v$version.zip"
-        Compress-Archive -Path "dist\AutoKeyClicker.exe", "README.md", "theme.json" -DestinationPath $archiveName -Force
+        Compress-Archive -Path "dist\AutoKeyClicker.exe", "README.md", "theme.json", "requirements.txt" -DestinationPath $archiveName -Force
         Write-Host "Created archive: $archiveName"
         Get-Item $archiveName | Select-Object Name, Length
+      shell: pwsh
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
@@ -115,7 +125,12 @@ img.save(icon_path)
         prerelease: false
         files: |
           AutoKeyClicker-v${{ steps.version.outputs.version }}.zip
-          dist/AutoKeyClicker.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+    
+    - name: Cleanup temporary files
+      if: always()
+      run: |
+        Remove-Item -Path "update_version.py", "create_icon.py" -ErrorAction SilentlyContinue
+        Write-Host "Cleaned up temporary files"
+      shell: pwsh
