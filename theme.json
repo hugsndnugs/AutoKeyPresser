@@ -4,6 +4,8 @@
     "transparency": 1.0,
     "padding": 5,
     "auto_download_update": true,
+    "notification_type": "sound",
+    "custom_sound_path": "",
     "colors": {
         "bg": "#ffffff",
         "fg": "#000000",

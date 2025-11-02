@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12']
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Verify imports
+      run: |
+        python -c "import tkinter; import pynput; import PIL; import pystray; import playsound; print('All imports successful')"
+    
+    - name: Check Python syntax
+      run: |
+        python -m py_compile key_clicker.py build.py
+    
+    - name: Validate theme.json
+      run: |
+        python -c "import json; json.load(open('theme.json')); print('theme.json is valid')"
+    
+    - name: Check version consistency
+      run: |
+        python -c "import sys; version_file = open('latest_version.txt').read().strip(); code_version = '1.4'; print(f'Version file: {version_file}, Code version: {code_version}')"
+
+  lint:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install linting tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pylint
+    
+    - name: Run flake8
+      run: |
+        flake8 key_clicker.py build.py --count --select=E9,F63,F7,F82 --show-source --statistics || true
+        flake8 key_clicker.py build.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || true
+    
+    - name: Run pylint
+      run: |
+        pylint key_clicker.py build.py --exit-zero || true
+

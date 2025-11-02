@@ -661,9 +661,17 @@ class KeyClicker:
         
     def on_key_press(self, key):
         try:
-            if key == keyboard.Key[self.hotkey_var.get().lower()]:
-                self.toggle_clicking()
-        except (KeyError, AttributeError):
+            hotkey_str = self.hotkey_var.get().lower()
+            
+            # Check if it's a special key (Key enum)
+            if hotkey_str in self.special_keys:
+                if key == self.special_keys[hotkey_str]:
+                    self.root.after(0, self.toggle_clicking)  # Use after to ensure thread-safe GUI update
+            else:
+                # Regular character key - check KeyCode
+                if hasattr(key, 'char') and key.char and key.char.lower() == hotkey_str:
+                    self.root.after(0, self.toggle_clicking)  # Use after to ensure thread-safe GUI update
+        except (KeyError, AttributeError, Exception):
             pass
             
     def toggle_clicking(self):
@@ -701,28 +709,32 @@ class KeyClicker:
             limit = int(self.limit_var.get())
             
             # Convert key to special key if needed
-            key_to_press = self.special_keys.get(key.lower(), key)
+            key_to_press = self.special_keys.get(key.lower(), key.lower())
             
             while self.is_running:
                 if limit > 0 and self.session_press_count >= limit:
                     self.is_running = False
-                    self.status_var.set("Status: Completed")
-                    self.toggle_button.config(text="Start (F6)")
-                    self.notify_press_limit()
+                    # Thread-safe GUI updates
+                    self.root.after(0, lambda: self.status_var.set("Status: Completed"))
+                    self.root.after(0, lambda: self.toggle_button.config(text="Start (F6)"))
+                    self.root.after(0, self.notify_press_limit)
                     break
                 
                 self.keyboard_controller.press(key_to_press)
                 self.keyboard_controller.release(key_to_press)
                 self.press_count += 1
                 self.session_press_count += 1
-                self.counter_var.set(f"Presses: {self.press_count}")
+                # Thread-safe GUI update
+                self.root.after(0, lambda count=self.press_count: self.counter_var.set(f"Presses: {count}"))
                 time.sleep(interval)
                 
         except Exception as e:
-            messagebox.showerror("Error", str(e))
+            error_msg = str(e)
             self.is_running = False
-            self.status_var.set("Status: Error")
-            self.toggle_button.config(text="Start (F6)")
+            # Thread-safe GUI updates
+            self.root.after(0, lambda: messagebox.showerror("Error", error_msg))
+            self.root.after(0, lambda: self.status_var.set("Status: Error"))
+            self.root.after(0, lambda: self.toggle_button.config(text="Start (F6)"))
             
     def change_theme(self, event=None):
         theme = self.theme_var.get()
