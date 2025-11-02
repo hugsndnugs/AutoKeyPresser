@@ -28,8 +28,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Determine version
+    - name: Determine and update version
       id: version
+      shell: pwsh
       run: |
         if ("${{ github.event_name }}" -eq "workflow_dispatch") {
           $VERSION = "${{ github.event.inputs.version }}"
@@ -38,51 +39,53 @@ jobs:
         }
         echo "version=$VERSION" >> $env:GITHUB_OUTPUT
         Write-Host "Version: $VERSION"
-        # Create Python script to update version
-        $script = @"
-import re
-version = '$VERSION'
-content = open('key_clicker.py', 'r', encoding='utf-8').read()
-updated = re.sub(r'__version__ = "[^"]+"', f'__version__ = "{version}"', content)
-open('key_clicker.py', 'w', encoding='utf-8').write(updated)
-open('latest_version.txt', 'w', encoding='utf-8').write(version)
-"@
-        $script | Out-File -FilePath update_version.py -Encoding utf8
-        python update_version.py
-      shell: pwsh
+        
+        # Update version in key_clicker.py
+        try {
+          $content = Get-Content "key_clicker.py" -Raw -ErrorAction Stop
+          $newContent = [regex]::Replace($content, '__version__ = "[^"]+"', "__version__ = `"$VERSION`"")
+          Set-Content -Path "key_clicker.py" -Value $newContent -Encoding UTF8 -ErrorAction Stop
+          Write-Host "Updated key_clicker.py with version $VERSION"
+        }
+        catch {
+          Write-Error "Failed to update version in key_clicker.py: $_"
+          exit 1
+        }
+        
+        # Update latest_version.txt
+        try {
+          Set-Content -Path "latest_version.txt" -Value $VERSION -Encoding UTF8 -ErrorAction Stop
+          Write-Host "Updated latest_version.txt with version $VERSION"
+        }
+        catch {
+          Write-Error "Failed to update latest_version.txt: $_"
+          exit 1
+        }
     
     - name: Verify version update
+      shell: pwsh
       run: |
         python -c "import re; content = open('key_clicker.py', 'r', encoding='utf-8').read(); m = re.search(r'__version__ = \"([^\"]+)\"', content); print(f'Code version: {m.group(1)}')"
         $latest = Get-Content latest_version.txt -Raw
-        Write-Host "Version file: $latest"
-      shell: pwsh
+        Write-Host "Latest version file: $latest"
     
     - name: Create icon if missing
+      shell: pwsh
       run: |
         if (-not (Test-Path "icon.ico")) {
-          $iconScript = @"
-from PIL import Image, ImageDraw
-import os
-icon_path = 'icon.ico'
-img = Image.new('RGB', (256, 256), color='white')
-draw = ImageDraw.Draw(img)
-draw.rectangle([64, 64, 192, 192], fill='black')
-img.save(icon_path)
-"@
-          $iconScript | Out-File -FilePath create_icon.py -Encoding utf8
-          python create_icon.py
-          Write-Host "Icon created"
+          Write-Host "Creating icon.ico..."
+          python -c "from PIL import Image, ImageDraw; img = Image.new('RGB', (256, 256), color='white'); draw = ImageDraw.Draw(img); draw.rectangle([64, 64, 192, 192], fill='black'); img.save('icon.ico'); print('Icon created successfully')"
         } else {
           Write-Host "Icon already exists"
         }
-      shell: pwsh
     
     - name: Build executable
+      shell: pwsh
       run: |
         python build.py
     
     - name: Verify executable exists
+      shell: pwsh
       run: |
         if (Test-Path "dist\AutoKeyClicker.exe") {
           Write-Host "Executable built successfully"
@@ -91,16 +94,15 @@ img.save(icon_path)
           Write-Error "Executable not found!"
           exit 1
         }
-      shell: pwsh
     
     - name: Create release archive
+      shell: pwsh
       run: |
         $version = "${{ steps.version.outputs.version }}"
         $archiveName = "AutoKeyClicker-v$version.zip"
         Compress-Archive -Path "dist\AutoKeyClicker.exe", "README.md", "theme.json", "requirements.txt" -DestinationPath $archiveName -Force
         Write-Host "Created archive: $archiveName"
         Get-Item $archiveName | Select-Object Name, Length
-      shell: pwsh
     
     - name: Create Release
       uses: softprops/action-gh-release@v1
@@ -128,9 +130,8 @@ img.save(icon_path)
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
-    - name: Cleanup temporary files
+    - name: Cleanup build artifacts
       if: always()
-      run: |
-        Remove-Item -Path "update_version.py", "create_icon.py" -ErrorAction SilentlyContinue
-        Write-Host "Cleaned up temporary files"
       shell: pwsh
+      run: |
+        Write-Host "Build and release complete"
