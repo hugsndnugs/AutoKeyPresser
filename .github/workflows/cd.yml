@@ -65,7 +65,13 @@ jobs:
     - name: Verify version update
       shell: pwsh
       run: |
-        python -c "import re; content = open('key_clicker.py', 'r', encoding='utf-8').read(); m = re.search(r'__version__ = \"([^\"]+)\"', content); print(f'Code version: {m.group(1)}')"
+        $content = Get-Content "key_clicker.py" -Raw
+        if ($content -match '__version__ = "([^"]+)"') {
+          Write-Host "Code version: $($matches[1])"
+        } else {
+          Write-Error "Could not find version in key_clicker.py"
+          exit 1
+        }
         $latest = Get-Content latest_version.txt -Raw
         Write-Host "Latest version file: $latest"
     
