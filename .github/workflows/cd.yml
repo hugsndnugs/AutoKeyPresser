@@ -39,29 +39,31 @@ jobs:
         echo "version=$VERSION" >> $env:GITHUB_OUTPUT
         Write-Host "Version: $VERSION"
         # Create Python script to update version
-        @"
-        import re
-        version = '$VERSION'
-        content = open('key_clicker.py', 'r', encoding='utf-8').read()
-        updated = re.sub(r'__version__ = "[^"]+"', f'__version__ = "{version}"', content)
-        open('key_clicker.py', 'w', encoding='utf-8').write(updated)
-        open('latest_version.txt', 'w', encoding='utf-8').write(version)
-        "@ | Out-File -FilePath update_version.py -Encoding utf8
+        $script = @"
+import re
+version = '$VERSION'
+content = open('key_clicker.py', 'r', encoding='utf-8').read()
+updated = re.sub(r'__version__ = "[^"]+"', f'__version__ = "{version}"', content)
+open('key_clicker.py', 'w', encoding='utf-8').write(updated)
+open('latest_version.txt', 'w', encoding='utf-8').write(version)
+"@
+        $script | Out-File -FilePath update_version.py -Encoding utf8
         python update_version.py
       shell: pwsh
     
     - name: Create icon if missing
       run: |
         if (-not (Test-Path "icon.ico")) {
-          @"
-          from PIL import Image, ImageDraw
-          import os
-          icon_path = 'icon.ico'
-          img = Image.new('RGB', (256, 256), color='white')
-          draw = ImageDraw.Draw(img)
-          draw.rectangle([64, 64, 192, 192], fill='black')
-          img.save(icon_path)
-          "@ | Out-File -FilePath create_icon.py -Encoding utf8
+          $iconScript = @"
+from PIL import Image, ImageDraw
+import os
+icon_path = 'icon.ico'
+img = Image.new('RGB', (256, 256), color='white')
+draw = ImageDraw.Draw(img)
+draw.rectangle([64, 64, 192, 192], fill='black')
+img.save(icon_path)
+"@
+          $iconScript | Out-File -FilePath create_icon.py -Encoding utf8
           python create_icon.py
           Write-Host "Icon created"
         } else {
